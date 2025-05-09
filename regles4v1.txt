@@ -127,8 +127,6 @@ variable 'exit \ if 1 exit, if 0 continue
 
 
 
-
-
 : showdir direction @ case
                          1 of ." up" endof
 			 0 of ." stop" endof
@@ -139,7 +137,6 @@ variable 'exit \ if 1 exit, if 0 continue
 			0 of ." closed" endof
 		   endcase ;
 
-: print 0= if ." no" else ." yes" then ;
 : showcallings 
         cr ." external calls: (0,1,2,.) " 
         floors 0 do 
@@ -160,8 +157,6 @@ variable 'exit \ if 1 exit, if 0 continue
      cr ." callings:" showcallings
      cr
 ;
-
-
 
 
 
