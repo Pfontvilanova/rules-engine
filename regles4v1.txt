@@ -1,0 +1,379 @@
+\ *********************************************************************************
+\ nom:             **Sistema Complet del Ascensor en SwiftForth**
+\ autor: Pere Font
+\ data: 14/4/25
+\ ************************************************************************************
+
+\ VARIABLES
+
+0 value floors \ floors number
+3 to floors
+variable num-rule \ number of rules
+0 num-rule !       
+variable priority \ the rules start by number 1. lower is more priority.
+0 priority !
+variable rules-limit  \ max number of rules
+20 rules-limit ! \ 20 rules by now
+
+create conditions rules-limit cells allot \ array for conditions
+conditions rules-limit cells erase
+create actions rules-limit cells allot  \ array for actions
+actions rules-limit cells erase
+create mypad 32 allot  \ temporal buffer
+
+variable actual-floor        \  current floor (0, 1 o n)
+0 actual-floor !             \ start in floor 0
+
+create external-calls floors cells allot \ array with external calls
+external-calls floors cells  erase      \ reset
+
+create internal-calls floors cells allot \ array for internal calls
+internal-calls floors cells erase      \ reset
+
+variable doors     \ open or closed true/false
+false doors !
+
+variable direction           \ current direction: -1 (down), 1 (up), 0 (stop)
+0 direction !
+
+Variable _out  \ if 1 exit, if 0 continue
+0 _out !
+: _on 1 swap ! ; \ put on
+: _off 0 swap ! ;  \ put off
+
+variable 'exit \ if 1 exit, if 0 continue
+
+
+ \ number of floors
+: floors-value ." enter number of floors: "
+    pad 10 accept >r 0. pad r> >number 2drop drop 
+    to floors 
+    external-calls floors cells  erase 
+    internal-calls floors cells erase 
+;
+
+ \ priority input
+: position
+    cr ." enter the priority of rule (less is more priority): " 
+    pad 10 accept >r 0. pad r> >number 2drop drop 
+    Dup 99 < if priority ! Else  'exit ! Then
+;
+
+  : read pad 20 accept pad swap mypad place ; \ read an string
+  : compares mypad find  \ check if the string is a defined word
+    dup 0= if ." word does?t exist" cr exit then ;
+  : >save swap drop num-rule @ cells + ! ; \ <name> >save. save the CFA of name in the array
+
+ \ condition input
+  : condition   cr ." Enter the name of condition (defined previously): " 
+     read  
+     compares  
+     conditions >save
+ ;   
+  \ Action input
+  : action cr ." Enter the name of action (defined previously): " 
+    read
+    compares 
+    actions >save
+   ; 
+
+ \ rules increment
+: counterup priority @ 1 -  0 max num-rule ! ;
+\ registering word. introduce all the rules, to finish introduce 99 as priority.
+: rule-record ( -- ) PAGE ." REGISTER NEW RULES" CR
+ begin position 'exit @ 99 = if false 'exit ! exit then counterup condition action cr ." rule registered successfully n: " num-rule @ 1 + . again
+;
+
+
+\ show the rules
+: show-rules ( -- ) page
+    ." SHOWING RULES" cr
+	priority @ num-rule @  or 0= if cr cr ." No rules " cr exit then
+    cr cr ." rules are: " cr
+    num-rule @ 1 +  0 do
+        cr ." Rule " i 1 + . ." :"
+        cr ."  Condition: " i cells conditions + @ >name count type
+        cr ."  Action: " i cells actions + @ >name count type
+        cr
+    loop
+;
+
+\ execute the rules. rules compiler
+: executing ( -- ) cr 
+     priority @ num-rule @  or 0= if ." No rules " 1 _out ! then
+    num-rule @ 1 + 0 do
+        i cells conditions + @ execute 
+        if
+        i cells actions + @ execute 
+        else
+         \  cr  ." the rule condition " i 1+ . ." is not fulfilled." cr
+        then
+    loop
+;
+
+\ initial instructions
+: configure ( -- ) page
+    ." INSTRUCTIONS"
+    cr ." before running the system you must enter the conditions and the actions"
+    cr ." then you must register the rules and enter a number of floors"
+    cr ." finally you can show the rules or execute the rules"
+    cr ." the last one is to execute the word elevator"
+		  cr
+;
+: input-max cr ." enter the max number of rules: " 
+    pad 10 accept >r 0. pad r> >number 2drop drop 
+    rules-limit !
+;
+
+
+
+
+
+: showdir direction @ case
+                         1 of ." up" endof
+			 0 of ." stop" endof
+			 -1 of ." down" endof
+		      endcase ;
+: showdoor doors @ case
+			1 of ." opened" endof
+			0 of ." closed" endof
+		   endcase ;
+
+: print 0= if ." no" else ." yes" then ;
+: showcallings 
+        cr ." external calls: (0,1,2,.) " 
+        floors 0 do 
+		external-calls i cells + @ print space
+                loop
+        cr ." internal calls: (0,1,2,.) "
+        floors 0 do 
+		internal-calls i cells + @ print space
+                loop cr
+;
+
+\ Show status
+: show-status page
+     ." SHOWING STATUS..." cr
+     cr ." floor: " actual-floor @ . 
+     cr ." direction: " showdir
+     cr ." door: " showdoor
+     cr ." callings:" showcallings
+     cr
+;
+
+
+
+
+
+\ Menu 
+: mainmenu ( -- ) PAGE
+    begin
+        cr ." Main Menu:"
+	cr ." 0. enter floors" \ only elevator module
+        cr ." 1. Instructions"
+        cr ." 2. Register new rule"
+        cr ." 3. Show rules"
+        cr ." 4. To execute inference engine"
+        cr ." 5. Show status "
+        cr ." 6. Exit"
+        cr ." Choose one option (1-6): "
+        key dup emit
+        case
+	    [char] 0 of floors-value endof
+            [char] 1 of configure endof
+            [char] 2 of rule-record endof
+            [char] 3 of show-rules endof
+            [char] 4 of executing endof
+            [char] 5 of show-status endof
+            [char] 6 of exit endof
+             cr ." invalid option, try again." cr
+        endcase
+    again
+;
+
+
+\ auxiliar words
+
+
+\ read external calls buffer
+: eread ( n -- )
+    cells external-calls + @  ;
+
+\ read internal calls buffer
+: iread ( n -- )
+    cells internal-calls + @  ;
+
+\ save external calls into buffer
+: esave ( n cell -- )
+    cells external-calls + !  ;
+
+\ save internal calls into buffer
+: isave ( n cell -- )
+    cells internal-calls + !  ;
+
+
+
+\ CONDITIONS
+\ if the condition is true then must be an action
+
+\ check if there are external calls
+: active-calls? ( -- flag )
+    external-calls dup floors cells + swap do
+        i @  if true unloop exit then
+       1 cells +loop false ;
+
+\ check if there are internal calls
+: active-internals? ( -- flag )
+    internal-calls dup floors cells + swap do
+        i @ if true unloop exit then
+        1 cells +loop false ;
+
+\ check if there are active calls in the current floor
+: actual-floor-stop? ( -- flag )
+    actual-floor @  eread
+    actual-floor @  iread
+    or ;
+
+\ check if there are calls in the current direction
+: indirection-stop? ( -- flag )
+    direction @ 1 = if  \ Subiendo
+        actual-floor @ 1+ floors  swap ?do
+            i eread i iread or if true unloop exit then
+        loop
+    then
+    direction @ -1 = if  \ Bajando
+        actual-floor @  0 ?do
+            i eread i iread or if true unloop exit then
+         loop
+    then
+    1 direction ! \ to avoid the 0 direction. the rules go wrong
+    false ;
+
+\ ACTIONS
+\ the actions modify the status of lift 
+
+\ stop in the current floor
+: making-stop ( -- )
+   0 actual-floor @ esave \ pone a 0 la llamada
+   0 actual-floor @ isave \ pone a 0 la llamada
+   \ 0 direction !
+    ." Stop in floor " actual-floor @ . ." has been made." cr 
+;
+
+\ open the doors
+: open-doors ( -- )
+    true doors !
+   cr ." opening doors." cr 1000 ms ." door is open" cr ;
+
+\ close the doors
+: close-doors ( -- )
+    false doors !
+   cr ." Closing doors." cr 1000 ms ." door is closed" cr ;
+
+: stopped if direction @ direction ! then ;
+: godown if -1 direction ! then ;
+: goup if 1 direction ! then ;
+: letdirection actual-floor @ - dup 0> goup dup 0< godown 0= stopped ; \ assings the correct direction
+: rread  pad 15 accept >r 0. pad r> >number 2drop drop 1 swap  ; \ read number
+\ read external call
+: eread-call ( -- )
+    cr ." external call from:(0,1,2,.) "
+    rread DUP >r 0 max floors  1 - min esave
+    r> letdirection 
+    cr ." OK" ;
+
+\ read internal call. you can introduce more than one floor. 9 to finish
+: iread-call ( -- )
+    begin
+    cr ." internal call to floor -9 to EXIT- ( 0,1,2,.): "
+    rread dup 9 = if drop exit then 0 max floors  1 - min isave
+    cr ." OK"
+    again  \ 9 per sortir del bucle
+;
+\ lift goes up a floor
+: uptonext ( -- )
+    actual-floor @ 1+ actual-floor !
+    ." going up to floor: " actual-floor @ . cr
+    1000 ms ." floor: " actual-floor @ . cr 
+;
+
+\ lift goes down a floor
+: downtonext ( -- )
+    actual-floor @ 1- actual-floor !
+    ." going down to floor: " actual-floor @ . cr 
+;
+
+: calls? active-calls?  active-internals? or ; \ check for any call
+\  change the lift direction
+: switchdir direction @ 1 = if -1 direction ! else direction @ -1 = if 1 direction ! then then ;
+        
+\ ask for a external call
+: callings  ." do you want a call? :" 
+    key [char] n = if cr ." no call" 
+                   else eread-call
+                   then ; \ if not n, then yes
+\ used in rule 4
+: starts active-calls? 0= active-internals? 0= and doors 0= and actual-floor @ 0= and ; \ first status
+: init 1 direction ! ; \ if initial status, lift must go up
+
+
+\ rule 1   if a call from current floor, lift must stop, open the door and check for internal calls
+: stop? actual-floor-stop? 1 = ;
+: stopping making-stop open-doors iread-call ;
+
+\ rule 2   if door is open is necessary to close
+: doorisopen doors @ 0 <> ;
+: closeit close-doors  ;
+
+\ rule 3   if there are calls but not in the current direction, direction must change
+: _switch indirection-stop? 0= calls?  and ;
+( switchdir) 
+
+\ rule 4    if initial status, stopped in floor 0, put direction up
+: inici? starts ;
+: up init ;
+
+\ rule 5    if a call go up or down. depending on the current floor and the calling floor
+: callindirection? indirection-stop? ;
+: upanddown direction @ 1 = if uptonext
+			    else downtonext then
+;
+
+\ rule 6 if no calls, stopped and doors are closed ask for an external calls
+: external 
+           cr ." options: "
+           cr ." 1 exit "
+           cr ." 2 external call" cr
+           key 
+           case
+           [char] 1 of cr ." exit"  _out _on endof
+           [char] 2 of cr callings endof
+           endcase ;
+
+: nocalls  active-calls? active-internals? or 0= ;
+: ask _out _off cr ." No calls. push a key to make a call or to exit " 
+      external 
+;
+
+
+\ INFERENCE ENGINE. main loop to run the lift
+: elevator ( -- ) page
+  _out _off
+  10 spaces ." LIFT SIMULATOR INFERENCES ENGINE" CR 
+     begin
+        _out @ if exit then 
+        executing
+     again
+;
+
+\ start the expert system menu. after rules are introduced you can choose optio 4, execute rules
+\ the system execute the rules once. you can check the status and execute again.
+\ or choose to write ELEVATOR and execute an infinit loop of calls.
+
+mainmenu
+
+
+
+
+
+
